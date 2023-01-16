@@ -1,38 +1,31 @@
 const express = require("express");
 const router = new express.Router();
-const userdb = require("../models/userSchema");
+const userdb = require("../models/userSchema.js");
+const userImg = require("../models/imageSchema")
 var bcrypt = require("bcryptjs");
-const authenticate = require("../middleware/authenticate");
+const authenticate = require("../middleware/authenticate.js");
 const nodemailer = require("nodemailer");
 const jwt  = require("jsonwebtoken");
+const multer = require("multer");
+const moment = require("moment");
 
-const keysecret = process.env.SECRET_KEY
-
-
+// const keysecret = process.env.SECRET_KEY
+const keysecret = "mynameisramannagariamawebdeveloper";
 
 // email config
-
 const transporter = nodemailer.createTransport({
     service:"gmail",
     auth:{
-        user:process.env.EMAIL,
-        pass:process.env.PASSWORD
+        user: "ramannagar08082000@gmail.com", // generated ethereal user
+        pass:"wolndopzyvsuarfn",
     }
 }) 
 
+ // for user registration
+ router.post("/register", async (req, res) => {
 
-// for user registration
-
-router.post("/register", async (req, res) => {
-
-    const { fname, email, password, cpassword } = req.body;
-
-    if (!fname || !email || !password || !cpassword) {
-        res.status(422).json({ error: "fill all the details" })
-    }
-
-    try {
-
+    const { username, email, password, cpassword, number } = req.body;
+     try {
         const preuser = await userdb.findOne({ email: email });
 
         if (preuser) {
@@ -41,11 +34,9 @@ router.post("/register", async (req, res) => {
             res.status(422).json({ error: "Password and Confirm Password Not Match" })
         } else {
             const finalUser = new userdb({
-                fname, email, password, cpassword
+                username, email, password, cpassword, number
             });
-
             // here password hasing
-
             const storeData = await finalUser.save();
 
             // console.log(storeData);
@@ -56,91 +47,34 @@ router.post("/register", async (req, res) => {
         res.status(422).json(error);
         console.log("catch block error");
     }
-
 });
-
-
-
 
 // user Login
+ router.post("/login", async (req, res) => {
+   const {email, password} = req.body;
 
-router.post("/login", async (req, res) => {
-    console.log(req.body);
-
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        res.status(422).json({ error: "fill all the details" })
-    }
-
-    try {
-       const userValid = await userdb.findOne({email:email});
-
-        if(userValid){
-
-            const isMatch = await bcrypt.compare(password,userValid.password);
-
-            if(!isMatch){
-                res.status(422).json({ error: "invalid details"})
-            }else{
-
-                // token generate
-                const token = await userValid.generateAuthtoken();
-
-                // cookiegenerate
-                res.cookie("usercookie",token,{
-                    expires:new Date(Date.now()+9000000),
-                    httpOnly:true
-                });
-
-                const result = {
-                    userValid,
-                    token
-                }
-                res.status(201).json({status:201,result})
-            }
+   try {
+    const userValid = await userdb.findOne({email})
+    // console.log(userValid)
+    if(userValid){
+        const isMatch = await bcrypt.compare(password, userValid.password);
+        if(!isMatch){
+            res.status(422).json(({error:"invalid detail"}))
         }else{
-            res.status(401).json({status:401,message:"invalid details"});
+            //token generate
+            console.log(userValid)
+            jwt.sign({_id:userValid._id}, keysecret, {expiresIn:"2h"},(err,token)=>{
+                if(err){
+                    res.send("Something went wrong")  
+                }
+                res.status(201).send({status:201, user:userValid, auth:token})
+            })
         }
-
-    } catch (error) {
-        res.status(401).json({status:401,error});
-        console.log("catch block");
     }
+   } catch (error) {
+    console.log(error);
+   }
 });
-
-
-
-// user valid
-router.get("/validuser",authenticate,async(req,res)=>{
-    try {
-        const ValidUserOne = await userdb.findOne({_id:req.userId});
-        res.status(201).json({status:201,ValidUserOne});
-    } catch (error) {
-        res.status(401).json({status:401,error});
-    }
-});
-
-
-// user logout
-
-router.get("/logout",authenticate,async(req,res)=>{
-    try {
-        req.rootUser.tokens =  req.rootUser.tokens.filter((curelem)=>{
-            return curelem.token !== req.token
-        });
-
-        res.clearCookie("usercookie",{path:"/"});
-
-        req.rootUser.save();
-
-        res.status(201).json({status:201})
-
-    } catch (error) {
-        res.status(401).json({status:401,error})
-    }
-});
-
 
 
 // send email Link For reset Password
@@ -155,7 +89,6 @@ router.post("/sendpasswordlink",async(req,res)=>{
 
     try {
         const userfind = await userdb.findOne({email:email});
-
         // token generate for reset password
         const token = jwt.sign({_id:userfind._id},keysecret,{
             expiresIn:"120s"
@@ -163,13 +96,12 @@ router.post("/sendpasswordlink",async(req,res)=>{
         
         const setusertoken = await userdb.findByIdAndUpdate({_id:userfind._id},{verifytoken:token},{new:true});
 
-
         if(setusertoken){
             const mailOptions = {
-                from:process.env.EMAIL,
+                from:"ramannagar08082000@gmail.com",
                 to:email,
                 subject:"Sending Email For password Reset",
-                text:`This Link Valid For 2 MINUTES http://localhost:3001/forgotpassword/${userfind.id}/${setusertoken.verifytoken}`
+                text:`This Link Valid For 2 MINUTES http://localhost:3000/forgotpassword/${userfind.id}/${setusertoken.verifytoken}`
             }
 
             transporter.sendMail(mailOptions,(error,info)=>{
@@ -189,7 +121,6 @@ router.post("/sendpasswordlink",async(req,res)=>{
     }
 
 });
-
 
 // verify user for forgot password time
 router.get("/forgotpassword/:id/:token",async(req,res)=>{
@@ -212,7 +143,6 @@ router.get("/forgotpassword/:id/:token",async(req,res)=>{
         res.status(401).json({status:401,error})
     }
 });
-
 
 // change password
 
@@ -242,20 +172,50 @@ router.post("/:id/:token",async(req,res)=>{
     }
 })
 
+//////////////////////////////////////////////////////////////////////////////////////////
 
+const storage = multer.diskStorage({
+    destination:(req, file, collback)=>{
+        collback(null, "./uploads")
+    },
+    filename:(req, file, collback)=>{
+        collback(null, `image-${Date.now()}. ${file.originalname}`)
+    }
+})
+
+// const isImage = (req, file, collback)=>{
+//     if(file.mimetype.startsWith("image")){
+//         collback(null, true)
+//     }else{
+//         collback(new Error("only image is allowed"))
+//     }
+// }
+
+const upload = multer({
+    storage:storage
+    // fileFilter:isImage
+})
+
+router.post("/imgupload", upload.array("products", 12), async (req, resp)=>{
+    console.log(req.files);
+    
+    console.log(req.body)
+    
+    try {
+        const date = moment(new Date()).format("YYYY-MM-DD")
+        const result = await userImg.create({
+            category:req.body.category,
+            images:req.files,
+            date:date
+        })   
+        if(result){
+            resp.status(201).json({status:201, result})
+        }else{
+            resp.status(401).json({status:401, message:"fill all the data"})
+        }
+    } catch (error) {
+        resp.status(401).json({status:401, message:"fill all the data"})
+    }
+})
 
 module.exports = router;
-
-
-
-// 2 way connection
-// 12345 ---> e#@$hagsjd
-// e#@$hagsjd -->  12345
-
-// hashing compare
-// 1 way connection
-// 1234 ->> e#@$hagsjd
-// 1234->> (e#@$hagsjd,e#@$hagsjd)=> true
-
-
-

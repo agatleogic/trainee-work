@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 
-const DB = process.env.DATABASE
+const DB = "mongodb://127.0.0.1:27017/my-store"
 
-mongoose.connect(DB,{
+mongoose.connect(DB, {
     useUnifiedTopology: true,
     useNewUrlParser: true
 }).then(()=> console.log("DataBase Connected")).catch((errr)=>{
