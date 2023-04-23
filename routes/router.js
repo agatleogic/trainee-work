@@ -13,13 +13,15 @@ const moment = require("moment");
 const keysecret = "mynameisramannagariamawebdeveloper";
 
 // email config
-const transporter = nodemailer.createTransport({
-    service:"gmail",
-    auth:{
-        user: "ramannagar08082000@gmail.com", // generated ethereal user
-        pass:"wolndopzyvsuarfn",
-    }
-}) 
+const transporter = nodeMailer.createTransport({
+    host: process.env.SMPT_HOST,
+    port: process.env.SMPT_PORT,
+    service: process.env.SMPT_SERVICE,
+    auth: {
+      user: process.env.SMPT_MAIL,
+      pass: process.env.SMPT_PASSWORD,
+    },
+  });
 
  // for user registration
  router.post("/register", async (req, res) => {
